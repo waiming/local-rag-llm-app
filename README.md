@@ -13,7 +13,6 @@ A local Retrieval-Augmented Generation (RAG) app that lets you chat with your ow
 - Load and index PDFs, DOCX, TXT, and HTML files
 - Show retrieved document source, page number, and content
 - RAG-powered QA using Chroma and Ollama
-- Fallback answers from local "knowledge snippets"
 - Fully offline (no OpenAI API required)
 
 
