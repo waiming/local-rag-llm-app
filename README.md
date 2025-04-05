@@ -7,7 +7,6 @@ A local Retrieval-Augmented Generation (RAG) app that lets you chat with your ow
 - Document chunk retrieval with context and metadata
 - Streamlit UI with live chat, source previews, and fallback knowledge
 
----
 
 ## Features
 
@@ -17,7 +16,6 @@ A local Retrieval-Augmented Generation (RAG) app that lets you chat with your ow
 - Fallback answers from local "knowledge snippets"
 - Fully offline (no OpenAI API required)
 
----
 
 ## Quick Start
 
@@ -36,7 +34,6 @@ conda env create -f environment.yml
 conda activate local-rag
 ```
 
----
 
 ### 2. Pull your LLM with Ollama
 
@@ -51,13 +48,11 @@ ollama pull mistral
 ollama pull deepseek-llm
 ```
 
----
 
 ### 3. Add your documents
 
 Place `.pdf`, `.docx`, `.txt`, or `.html` files into the `uploaded_docs/` folder.
 
----
 
 ### 4. Run the app
 
@@ -71,7 +66,6 @@ Or run directly with Streamlit:
 streamlit run src/app.py --server.runOnSave=false
 ```
 
----
 
 ## Folder Structure
 
@@ -81,30 +75,12 @@ local-rag-llm-app/
 │   ├── app.py                  # Streamlit UI
 │   └── rag_local.py            # RAG backend logic
 ├── uploaded_docs/              # Your document corpus
-├── fallback_knowledge/         # Optional fallback content
 ├── chroma_db/                  # Vector store (auto-generated)
 ├── requirements.txt
-├── environment.yml             # (optional) for conda setup
+├── environment.yml             # for conda setup
 ├── main.py                     # Entry point
 └── README.md
 ```
-
----
-
-## Fallback Knowledge (optional)
-
-If a question can't be answered from the documents, the app looks in `fallback_knowledge/`.
-
-Example files:
-
-```
-fallback_knowledge/bayesian_hypothesis.txt
-fallback_knowledge/llm.txt
-```
-
-Each file should contain a short summary or explanation of that topic.
-
----
 
 ## Configuration & Tuning
 
@@ -115,7 +91,6 @@ Each file should contain a short summary or explanation of that topic.
 | Chunk size / overlap | `rag_local.py`   | 1500 / 300 recommended           |
 | Retrieval depth      | `rag_local.py`   | `search_kwargs={"k": 5}`         |
 
----
 
 ## Possible Future Enhancements
 
@@ -124,8 +99,6 @@ Each file should contain a short summary or explanation of that topic.
 - Summarization or topic tagging of context
 - Support for CSV and Markdown files
 - UI-based document or fallback upload
-
----
 
 ## Acknowledgments
 
@@ -137,7 +110,6 @@ This project uses:
 - [Sentence Transformers](https://www.sbert.net/)
 - [Streamlit](https://streamlit.io/)
 
----
 
 ## Privacy & Local Use
 
