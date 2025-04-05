@@ -1,4 +1,4 @@
- local-rag-llm-app
+# local-rag-llm-app
 
 A local Retrieval-Augmented Generation (RAG) app that lets you chat with your own documents using:
 
