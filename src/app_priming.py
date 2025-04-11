@@ -1,4 +1,4 @@
-# RAG Option 1: Continuous Chat with ChatOllama and Full Document Streaming
+# RAG Option 1: Continuous Chat with Smart Document Handling
 # File: src/app_priming.py
 
 import streamlit as st
@@ -11,7 +11,7 @@ from langchain_community.document_loaders import (
 )
 
 st.set_page_config(page_title="RAG Option 1 - Continuous Chat")
-st.title("RAG: Continuous Chat with Full Document Priming")
+st.title("RAG: Continuous Chat with Smart Document Handling")
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -22,7 +22,9 @@ if "all_docs" not in st.session_state:
 if "full_docs" not in st.session_state:
     st.session_state.full_docs = []
 
-MAX_CHARS = 20000  # Limit per message to avoid context overflow
+MODEL_NAME = "llama3.2"
+MAX_CHARS = 20000
+MAX_CHUNKS = 25
 
 
 def get_full_documents(folder):
@@ -42,9 +44,18 @@ def get_full_documents(folder):
 
         pages = loader.load()
         full_content = "\n\n".join([p.page_content for p in pages])
-        doc = {"filename": filename, "content": full_content}
+        doc = {"filename": filename, "content": full_content, "pages": pages}
         docs.append(doc)
     return docs
+
+
+def chop_and_append(content, filename, messages):
+    chunks = [content[i:i + MAX_CHARS] for i in range(0, len(content), MAX_CHARS)]
+    merged_text = "\n\n".join(chunks)
+    msg = f"Here is the full content of the document '{filename}':\n\n{merged_text}"
+    messages.append(HumanMessage(content=msg))
+    st.code(msg[:3000], language="text")
+
 
 uploaded_files = st.file_uploader("Upload documents", type=["pdf", "docx", "txt", "html"], accept_multiple_files=True)
 
@@ -57,7 +68,11 @@ if uploaded_files:
 
     raw_docs = load_documents("uploaded_docs")
     chunks = split_documents(raw_docs)
-    vectordb = create_vectorstore(chunks)
+
+    if os.path.exists("chroma_db/index"):
+        vectordb = Chroma(persist_directory="chroma_db")
+    else:
+        vectordb = create_vectorstore(chunks)
 
     st.session_state.vectordb = vectordb
     st.session_state.all_docs = raw_docs
@@ -69,7 +84,6 @@ if st.session_state.vectordb and st.session_state.full_docs:
     st.subheader("Ask a question")
     query = st.text_input("Your question")
     if query:
-        # Build message history
         messages = []
         for role, content in st.session_state.chat_history:
             if role == "user":
@@ -77,30 +91,35 @@ if st.session_state.vectordb and st.session_state.full_docs:
             else:
                 messages.append(AIMessage(content=content))
 
-        # Step 1: Retrieve relevant documents
         results = st.session_state.vectordb.similarity_search(query, k=5)
-        retrieved_filenames = list(set(
-            doc.metadata.get("source") for doc in results
-        ))
-
-        # Step 2: Load full documents and chunk them if too long
+        print(f"results: {results}")
+        retrieved_filenames = list(set(doc.metadata.get("source") for doc in results))
         full_docs = [doc for doc in st.session_state.full_docs if doc["filename"] in retrieved_filenames]
 
         for doc in full_docs:
             filename = doc["filename"]
             content = doc["content"].strip()
-            chunks = [content[i:i+MAX_CHARS] for i in range(0, len(content), MAX_CHARS)]
-            for idx, chunk in enumerate(chunks):
-                prompt = f"Here is part {idx+1} of the document '{filename}':\n\n{chunk}"
-                messages.append(HumanMessage(content=prompt))
-                st.code(prompt, language="text")
+            pages = doc["pages"]
+            doc_chunks = [content[i:i + MAX_CHARS] for i in range(0, len(content), MAX_CHARS)]
 
-        # Step 3: Add the user query
+            if len(doc_chunks) <= MAX_CHUNKS:
+                chop_and_append(content, filename, messages)
+            else:
+                matches = [m for m in results if m.metadata.get("source") == filename]
+                retrieved_pages = set(m.metadata.get("page") for m in matches if m.metadata.get("page") is not None)
+                if not retrieved_pages:
+                    continue
+                for page_idx in retrieved_pages:
+                    if 0 <= page_idx < len(pages):
+                        page = pages[page_idx]
+                        page_text = page.page_content.strip()
+                        chop_and_append(page_text, f"{filename} (page {page_idx + 1})", messages)
+
         question_prompt = f"""
 You have read the documents above.
 
 Now, answer this question strictly based on the content of those documents only.
-If the answer is not present in the documents, say "I don't know."
+If the answer is not present in the documents, say \"I don't know.\"
 Do not use any outside knowledge or assumptions.
 
 Question: {query}
@@ -108,9 +127,8 @@ Question: {query}
         messages.append(HumanMessage(content=question_prompt))
         st.code(question_prompt, language="text")
 
-        chat = ChatOllama(model="llama3.2")
+        chat = ChatOllama(model=MODEL_NAME)
         response = chat(messages)
-
         answer = response.content
 
         st.subheader("Answer")
