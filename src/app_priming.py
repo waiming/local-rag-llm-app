@@ -1,14 +1,9 @@
-# RAG Option 1: Continuous Chat with Smart Document Handling
-# File: src/app_priming.py
-
 import streamlit as st
 import os
-from rag_local import load_documents, split_documents, create_vectorstore
+import hashlib
+from rag_local import load_documents, split_documents, create_vectorstore, load_vectorstore, get_full_documents
 from langchain_community.chat_models import ChatOllama
 from langchain.schema import HumanMessage, AIMessage
-from langchain_community.document_loaders import (
-    PyPDFLoader, TextLoader, UnstructuredHTMLLoader, UnstructuredWordDocumentLoader
-)
 
 st.set_page_config(page_title="RAG Option 1 - Continuous Chat")
 st.title("RAG: Continuous Chat with Smart Document Handling")
@@ -26,36 +21,12 @@ MODEL_NAME = "llama3.2"
 MAX_CHARS = 20000
 MAX_CHUNKS = 25
 
-
-def get_full_documents(folder):
-    docs = []
-    for filename in os.listdir(folder):
-        path = os.path.join(folder, filename)
-        if filename.endswith(".pdf"):
-            loader = PyPDFLoader(path)
-        elif filename.endswith(".docx"):
-            loader = UnstructuredWordDocumentLoader(path)
-        elif filename.endswith(".txt"):
-            loader = TextLoader(path)
-        elif filename.endswith(".html"):
-            loader = UnstructuredHTMLLoader(path)
-        else:
-            continue
-
-        pages = loader.load()
-        full_content = "\n\n".join([p.page_content for p in pages])
-        doc = {"filename": filename, "content": full_content, "pages": pages}
-        docs.append(doc)
-    return docs
-
-
 def chop_and_append(content, filename, messages):
     chunks = [content[i:i + MAX_CHARS] for i in range(0, len(content), MAX_CHARS)]
     merged_text = "\n\n".join(chunks)
     msg = f"Here is the full content of the document '{filename}':\n\n{merged_text}"
     messages.append(HumanMessage(content=msg))
-    st.code(msg[:3000], language="text")
-
+    st.code(msg, language="text")
 
 uploaded_files = st.file_uploader("Upload documents", type=["pdf", "docx", "txt", "html"], accept_multiple_files=True)
 
@@ -69,8 +40,8 @@ if uploaded_files:
     raw_docs = load_documents("uploaded_docs")
     chunks = split_documents(raw_docs)
 
-    if os.path.exists("chroma_db/index"):
-        vectordb = Chroma(persist_directory="chroma_db")
+    if os.path.exists("faiss_index"):
+        vectordb = load_vectorstore()
     else:
         vectordb = create_vectorstore(chunks)
 
@@ -92,17 +63,20 @@ if st.session_state.vectordb and st.session_state.full_docs:
                 messages.append(AIMessage(content=content))
 
         results = st.session_state.vectordb.similarity_search(query, k=5)
-        print(f"results: {results}")
-        retrieved_filenames = list(set(doc.metadata.get("source") for doc in results))
-        full_docs = [doc for doc in st.session_state.full_docs if doc["filename"] in retrieved_filenames]
+        print(f"Results: {results}")
 
-        for doc in full_docs:
-            filename = doc["filename"]
+        retrieved_filenames = list(set(doc.metadata.get("source") for doc in results))
+
+        doc_lookup = {doc["filename"]: doc for doc in st.session_state.full_docs}
+        for filename in retrieved_filenames:
+            if filename not in doc_lookup:
+                continue
+            doc = doc_lookup[filename]
             content = doc["content"].strip()
             pages = doc["pages"]
-            doc_chunks = [content[i:i + MAX_CHARS] for i in range(0, len(content), MAX_CHARS)]
+            num_chunks = len(content) // MAX_CHARS + 1
 
-            if len(doc_chunks) <= MAX_CHUNKS:
+            if num_chunks <= MAX_CHUNKS:
                 chop_and_append(content, filename, messages)
             else:
                 matches = [m for m in results if m.metadata.get("source") == filename]
@@ -119,7 +93,7 @@ if st.session_state.vectordb and st.session_state.full_docs:
 You have read the documents above.
 
 Now, answer this question strictly based on the content of those documents only.
-If the answer is not present in the documents, say \"I don't know.\"
+If the answer is not present in the documents, say "I don't know."
 Do not use any outside knowledge or assumptions.
 
 Question: {query}
