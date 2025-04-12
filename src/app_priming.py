@@ -30,6 +30,7 @@ def chop_and_append(content, filename, messages):
 
 uploaded_files = st.file_uploader("Upload documents", type=["pdf", "docx", "txt", "html"], accept_multiple_files=True)
 
+# Upload and process new files
 if uploaded_files:
     os.makedirs("uploaded_docs", exist_ok=True)
     for file in uploaded_files:
@@ -40,16 +41,19 @@ if uploaded_files:
     raw_docs = load_documents("uploaded_docs")
     chunks = split_documents(raw_docs)
 
-    if os.path.exists("faiss_index"):
-        vectordb = load_vectorstore()
-    else:
-        vectordb = create_vectorstore(chunks)
-
+    vectordb = create_vectorstore(chunks)
     st.session_state.vectordb = vectordb
     st.session_state.all_docs = raw_docs
     st.session_state.full_docs = get_full_documents("uploaded_docs")
     st.success("Vector store and full document memory initialized.")
 
+# Auto-load saved vectorstore if it exists and wasn't loaded already
+elif not st.session_state.vectordb and os.path.exists("faiss_index"):
+    st.session_state.vectordb = load_vectorstore()
+    st.session_state.full_docs = get_full_documents("uploaded_docs")
+    st.info("Loaded existing FAISS index and documents.")
+
+# Display chat interface if vectorstore is available
 if st.session_state.vectordb and st.session_state.full_docs:
     st.markdown("---")
     st.subheader("Ask a question")
@@ -63,7 +67,6 @@ if st.session_state.vectordb and st.session_state.full_docs:
                 messages.append(AIMessage(content=content))
 
         results = st.session_state.vectordb.similarity_search(query, k=5)
-        print(f"Results: {results}")
 
         retrieved_filenames = list(set(doc.metadata.get("source") for doc in results))
 
@@ -111,6 +114,7 @@ Question: {query}
         st.session_state.chat_history.append(("user", query))
         st.session_state.chat_history.append(("ai", answer))
 
+# Display chat history
 if st.session_state.chat_history:
     st.markdown("---")
     st.subheader("Chat History")

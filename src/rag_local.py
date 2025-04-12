@@ -5,7 +5,7 @@ from langchain_community.document_loaders import (
 )
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
 from langchain.chains import RetrievalQAWithSourcesChain
 
@@ -36,8 +36,9 @@ def split_documents(documents):
 
 
 def create_vectorstore(chunks):
-    embeddings = HuggingFaceBgeEmbeddings(
+    embeddings = HuggingFaceEmbeddings(
         model_name="BAAI/bge-base-en-v1.5",
+        model_kwargs={"trust_remote_code": True},
         encode_kwargs={"normalize_embeddings": True}
     )
     vectordb = FAISS.from_documents(chunks, embeddings)
@@ -46,8 +47,9 @@ def create_vectorstore(chunks):
 
 
 def load_vectorstore():
-    embeddings = HuggingFaceBgeEmbeddings(
+    embeddings = HuggingFaceEmbeddings(
         model_name="BAAI/bge-base-en-v1.5",
+        model_kwargs={"trust_remote_code": True},
         encode_kwargs={"normalize_embeddings": True}
     )
     vectordb = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
